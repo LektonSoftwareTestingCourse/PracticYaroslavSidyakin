@@ -1,0 +1,30 @@
+# Модель API управления картами
+# Объект: Card Management Service, tz/05-card-management.md
+# Оси: операция, валидность PAN, состояние карты, корректность лимитов,
+# сумма относительно баланса, состояние RRN.
+# Генерация: pict model-cards-api.txt /e:seed-cards-api.txt > pairwise-cards-api.tsv
+
+Operation:   CREATE, GET_ONE, LIST, PATCH, DELETE, RESERVE, GENERATE
+PanInput:    VALID_EXISTING, VALID_ABSENT, WRONG_LENGTH, NON_DIGIT
+CardState:   ACTIVE, INACTIVE, BLOCKED, EXPIRED, DELETED
+LimitInput:  VALID, NEGATIVE, DAILY_GT_MONTHLY, ABSENT
+AmountInput: LE_BALANCE, GT_BALANCE, ZERO, NEGATIVE
+RrnInput:    NEW, DUPLICATE, WRONG_FORMAT
+
+# CREATE и GENERATE не принимают PAN: сервис генерирует его сам.
+IF [Operation] IN {"CREATE", "GENERATE"} THEN
+    [PanInput] = "VALID_ABSENT" AND [CardState] = "ACTIVE";
+
+# LIST не адресуется к конкретной карте.
+IF [Operation] = "LIST" THEN [PanInput] = "VALID_ABSENT";
+
+# Сумма и RRN относятся только к резервированию.
+IF [Operation] <> "RESERVE" THEN
+    [AmountInput] = "LE_BALANCE" AND [RrnInput] = "NEW";
+
+# Лимиты передаются только при создании и частичном обновлении.
+IF [Operation] NOT IN {"CREATE", "PATCH"} THEN [LimitInput] = "ABSENT";
+
+# Если PAN некорректен или карты нет, её состояние не наблюдаемо.
+IF [PanInput] IN {"WRONG_LENGTH", "NON_DIGIT", "VALID_ABSENT"} AND
+   [Operation] NOT IN {"CREATE", "GENERATE", "LIST"} THEN [CardState] = "ACTIVE";

@@ -1,0 +1,37 @@
+# Модель авторизации транзакции: POST /api/internal/authorize
+# Объект: Authorization Service, tz/04-authorization.md
+# Оси соответствуют проверкам сервиса: доступность Card Management, статус
+# карты, срок действия, баланс, дневной и месячный лимиты.
+# Генерация: pict model-authorize.txt /e:seed-authorize.txt > pairwise-authorize.tsv
+
+CmsState:        UP, DOWN
+CardStatus:      ACTIVE, INACTIVE, BLOCKED, EXPIRED, DELETED, ABSENT
+ExpiryState:     FUTURE, CURRENT_MONTH, PAST
+AmountVsBalance: LESS, EQUAL, GREATER
+AmountVsDaily:   LESS, EQUAL, GREATER
+MonthlyHeadroom: ENOUGH, EXACT, EXCEEDED
+BinLookupState:  UP, DOWN
+
+# Card Management недоступен: до карточных проверок дело не доходит, фон
+# фиксируем нейтральным.
+IF [CmsState] = "DOWN" THEN
+    [CardStatus] = "ACTIVE" AND [ExpiryState] = "FUTURE" AND
+    [AmountVsBalance] = "LESS" AND [AmountVsDaily] = "LESS" AND
+    [MonthlyHeadroom] = "ENOUGH";
+
+# Карта не найдена или удалена: её атрибуты не наблюдаемы.
+IF [CardStatus] IN {"ABSENT", "DELETED"} THEN
+    [ExpiryState] = "FUTURE" AND [AmountVsBalance] = "LESS" AND
+    [AmountVsDaily] = "LESS" AND [MonthlyHeadroom] = "ENOUGH";
+
+# Статус EXPIRED присваивается карте с истёкшим сроком, иначе данные
+# противоречивы.
+IF [CardStatus] = "EXPIRED" THEN [ExpiryState] = "PAST";
+
+# Для INACTIVE и BLOCKED срок держим валидным, чтобы причина отказа была
+# однозначной.
+IF [CardStatus] IN {"INACTIVE", "BLOCKED"} THEN [ExpiryState] = "FUTURE";
+
+# Исчерпанный месяц требует суммы в пределах дневного лимита, иначе отказ
+# определится дневным лимитом и месячный не проверится.
+IF [MonthlyHeadroom] = "EXCEEDED" THEN [AmountVsDaily] <> "GREATER";
