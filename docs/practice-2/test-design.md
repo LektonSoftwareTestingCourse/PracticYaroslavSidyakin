@@ -234,7 +234,44 @@
 | `CardStatus IN {INACTIVE, BLOCKED}` требует `ExpiryState = FUTURE` | чтобы причина отказа была однозначной |
 | `MonthlyHeadroom = EXCEEDED` исключает `AmountVsDaily = GREATER` | иначе отказ всегда определяется дневным лимитом и месячный не проверяется |
 
+#### Тест-кейсы из набора
+
+Каждая строка набора — отдельный кейс. Порядок значений в колонке «Комбинация»:
+`CmsState / CardStatus / ExpiryState / AmountVsBalance / AmountVsDaily /
+MonthlyHeadroom / BinLookupState`. Ожидаемый результат выведен по таблице
+решений: исход определяет первая сработавшая проверка.
+
+| ID | Комбинация | Ожидаемый результат | Требование |
+|:---:|---|---|---|
+| TC-PW-A-01 | UP / ACTIVE / FUTURE / LESS / LESS / ENOUGH / UP | APPROVED, `00`, выданы `rrn` и `authCode` | REQ-AUTH-11 |
+| TC-PW-A-02 | UP / ACTIVE / FUTURE / EQUAL / EQUAL / EXACT / UP | APPROVED, `00`, выданы `rrn` и `authCode` | REQ-AUTH-11 |
+| TC-PW-A-03 | UP / ACTIVE / CURRENT_MONTH / LESS / LESS / ENOUGH / UP | APPROVED, `00`, выданы `rrn` и `authCode` | REQ-AUTH-11 |
+| TC-PW-A-04 | UP / ACTIVE / FUTURE / GREATER / LESS / ENOUGH / UP | DECLINED, `51`, `INSUFFICIENT_FUNDS` | REQ-AUTH-10 |
+| TC-PW-A-05 | UP / ACTIVE / FUTURE / LESS / GREATER / ENOUGH / UP | DECLINED, `61`, `EXCEEDS_AMOUNT_LIMIT` | REQ-AUTH-08 |
+| TC-PW-A-06 | UP / ACTIVE / FUTURE / LESS / LESS / EXCEEDED / UP | DECLINED, `61`, `EXCEEDS_AMOUNT_LIMIT` | REQ-AUTH-09 |
+| TC-PW-A-07 | UP / ACTIVE / FUTURE / LESS / LESS / ENOUGH / DOWN | APPROVED, `00`, выданы `rrn` и `authCode` | REQ-AUTH-11, REQ-AUTH-17 |
+| TC-PW-A-08 | UP / INACTIVE / FUTURE / EQUAL / LESS / EXACT / DOWN | DECLINED, `05`, `CARD_INACTIVE` | REQ-AUTH-04, REQ-AUTH-17 |
+| TC-PW-A-09 | UP / INACTIVE / FUTURE / GREATER / EQUAL / ENOUGH / UP | DECLINED, `05`, `CARD_INACTIVE` | REQ-AUTH-04 |
+| TC-PW-A-10 | UP / DELETED / FUTURE / LESS / LESS / ENOUGH / DOWN | DECLINED, `14`: удалённая карта недоступна | REQ-CMS-09, REQ-AUTH-17 |
+| TC-PW-A-11 | UP / BLOCKED / FUTURE / LESS / EQUAL / EXACT / DOWN | DECLINED, `05`, `CARD_BLOCKED` | REQ-AUTH-05, REQ-AUTH-17 |
+| TC-PW-A-12 | UP / EXPIRED / PAST / GREATER / EQUAL / EXCEEDED / DOWN | DECLINED, `54`, `CARD_EXPIRED` | REQ-AUTH-06, REQ-AUTH-17 |
+| TC-PW-A-13 | UP / BLOCKED / FUTURE / EQUAL / GREATER / ENOUGH / UP | DECLINED, `05`, `CARD_BLOCKED` | REQ-AUTH-05 |
+| TC-PW-A-14 | UP / BLOCKED / FUTURE / EQUAL / LESS / EXCEEDED / DOWN | DECLINED, `05`, `CARD_BLOCKED` | REQ-AUTH-05, REQ-AUTH-17 |
+| TC-PW-A-15 | UP / ABSENT / FUTURE / LESS / LESS / ENOUGH / DOWN | DECLINED, `14`, `CARD_NOT_FOUND` | REQ-AUTH-03, REQ-AUTH-17 |
+| TC-PW-A-16 | UP / ACTIVE / CURRENT_MONTH / EQUAL / EQUAL / EXCEEDED / DOWN | DECLINED, `61`, `EXCEEDS_AMOUNT_LIMIT` | REQ-AUTH-09, REQ-AUTH-17 |
+| TC-PW-A-17 | UP / BLOCKED / FUTURE / GREATER / GREATER / EXACT / UP | DECLINED, `05`, `CARD_BLOCKED` | REQ-AUTH-05 |
+| TC-PW-A-18 | UP / EXPIRED / PAST / LESS / GREATER / ENOUGH / UP | DECLINED, `54`, `CARD_EXPIRED` | REQ-AUTH-06 |
+| TC-PW-A-19 | UP / INACTIVE / FUTURE / LESS / LESS / EXCEEDED / DOWN | DECLINED, `05`, `CARD_INACTIVE` | REQ-AUTH-04, REQ-AUTH-17 |
+| TC-PW-A-20 | UP / EXPIRED / PAST / EQUAL / LESS / EXACT / UP | DECLINED, `54`, `CARD_EXPIRED` | REQ-AUTH-06 |
+| TC-PW-A-21 | UP / DELETED / FUTURE / LESS / LESS / ENOUGH / UP | DECLINED, `14`: удалённая карта недоступна | REQ-CMS-09 |
+| TC-PW-A-22 | DOWN / ACTIVE / FUTURE / LESS / LESS / ENOUGH / UP | DECLINED, `05`, `ISSUER_TIMEOUT` | REQ-AUTH-14 |
+| TC-PW-A-23 | UP / ACTIVE / CURRENT_MONTH / GREATER / GREATER / EXACT / DOWN | DECLINED, `61`, `EXCEEDS_AMOUNT_LIMIT` | REQ-AUTH-08, REQ-AUTH-17 |
+| TC-PW-A-24 | UP / ACTIVE / PAST / GREATER / LESS / ENOUGH / DOWN | DECLINED, `54`, `CARD_EXPIRED` | REQ-AUTH-07, REQ-AUTH-17 |
+| TC-PW-A-25 | DOWN / ACTIVE / FUTURE / LESS / LESS / ENOUGH / DOWN | DECLINED, `05`, `ISSUER_TIMEOUT` | REQ-AUTH-14, REQ-AUTH-17 |
+| TC-PW-A-26 | UP / INACTIVE / FUTURE / EQUAL / GREATER / EXACT / UP | DECLINED, `05`, `CARD_INACTIVE` | REQ-AUTH-04 |
+| TC-PW-A-27 | UP / ABSENT / FUTURE / LESS / LESS / ENOUGH / UP | DECLINED, `14`, `CARD_NOT_FOUND` | REQ-AUTH-03 |
 ### Модель API управления картами
+
 
 Модель: [`pict/model-cards-api.txt`](pict/model-cards-api.txt), seed:
 [`pict/seed-cards-api.txt`](pict/seed-cards-api.txt), набор:
@@ -253,7 +290,88 @@
 Ограничения: PAN не передаётся при создании и генерации, сумма и RRN относятся
 только к резервированию, лимиты — только к созданию и обновлению.
 
+#### Тест-кейсы из набора
+
+Порядок значений в колонке «Комбинация»: `Operation / PanInput / CardState /
+LimitInput / AmountInput / RrnInput`. Ожидаемый результат выведен по порядку
+проверок сервиса: валидация формата, поиск карты, состояние карты, бизнес-правила.
+
+| ID | Комбинация | Ожидаемый результат | Требование |
+|:---:|---|---|---|
+| TC-PW-C-01 | CREATE / VALID_ABSENT / ACTIVE / VALID / LE_BALANCE / NEW | 201: карта создана со статусом ACTIVE, PAN проходит проверку Луна | REQ-CMS-02 |
+| TC-PW-C-02 | GENERATE / VALID_ABSENT / ACTIVE / ABSENT / LE_BALANCE / NEW | 201: карты созданы и распределены по BIN | REQ-CMS-10 |
+| TC-PW-C-03 | GET_ONE / VALID_EXISTING / ACTIVE / ABSENT / LE_BALANCE / NEW | 200: карта возвращена | REQ-CMS-05 |
+| TC-PW-C-04 | LIST / VALID_ABSENT / ACTIVE / ABSENT / LE_BALANCE / NEW | 200: страница карт и поле `total`; удалённые карты не попадают в выдачу | REQ-CMS-06 |
+| TC-PW-C-05 | PATCH / VALID_EXISTING / ACTIVE / VALID / LE_BALANCE / NEW | 200: переданные поля обновлены, остальные не изменились | REQ-CMS-07 |
+| TC-PW-C-06 | DELETE / VALID_EXISTING / ACTIVE / ABSENT / LE_BALANCE / NEW | 204: карта получает статус DELETED | REQ-CMS-08 |
+| TC-PW-C-07 | RESERVE / VALID_EXISTING / ACTIVE / ABSENT / LE_BALANCE / NEW | 200: баланс уменьшен на сумму | REQ-CMS-15 |
+| TC-PW-C-08 | RESERVE / VALID_EXISTING / ACTIVE / ABSENT / GT_BALANCE / NEW | 402: недостаточно средств, баланс не изменён | REQ-CMS-15 |
+| TC-PW-C-09 | RESERVE / VALID_EXISTING / ACTIVE / ABSENT / LE_BALANCE / DUPLICATE | 409: RRN уже использован, повторного списания нет | REQ-CMS-15 |
+| TC-PW-C-10 | GET_ONE / VALID_ABSENT / ACTIVE / ABSENT / LE_BALANCE / NEW | 404: карта не найдена | REQ-CMS-05 |
+| TC-PW-C-11 | RESERVE / VALID_EXISTING / DELETED / ABSENT / ZERO / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-12 | PATCH / VALID_EXISTING / DELETED / NEGATIVE / LE_BALANCE / NEW | 400: лимит не может быть отрицательным | REQ-CMS-07 |
+| TC-PW-C-13 | GET_ONE / VALID_EXISTING / EXPIRED / ABSENT / LE_BALANCE / NEW | 200: карта возвращена | REQ-CMS-05 |
+| TC-PW-C-14 | GET_ONE / VALID_EXISTING / BLOCKED / ABSENT / LE_BALANCE / NEW | 200: карта возвращена | REQ-CMS-05 |
+| TC-PW-C-15 | PATCH / VALID_EXISTING / BLOCKED / DAILY_GT_MONTHLY / LE_BALANCE / NEW | 400: месячный лимит не может быть меньше дневного | REQ-CMS-07 |
+| TC-PW-C-16 | RESERVE / VALID_EXISTING / EXPIRED / ABSENT / NEGATIVE / DUPLICATE | 400: сумма резервирования должна быть положительной | REQ-CMS-15 |
+| TC-PW-C-17 | LIST / VALID_ABSENT / INACTIVE / ABSENT / LE_BALANCE / NEW | 200: страница карт и поле `total`; удалённые карты не попадают в выдачу | REQ-CMS-06 |
+| TC-PW-C-18 | DELETE / VALID_EXISTING / INACTIVE / ABSENT / LE_BALANCE / NEW | 204: карта получает статус DELETED | REQ-CMS-08 |
+| TC-PW-C-19 | PATCH / VALID_EXISTING / DELETED / VALID / LE_BALANCE / NEW | 404: удалённая карта недоступна | REQ-CMS-09 |
+| TC-PW-C-20 | LIST / VALID_ABSENT / DELETED / ABSENT / LE_BALANCE / NEW | 200: страница карт и поле `total`; удалённые карты не попадают в выдачу | REQ-CMS-06 |
+| TC-PW-C-21 | RESERVE / VALID_EXISTING / INACTIVE / ABSENT / GT_BALANCE / DUPLICATE | Отказ: резервирование по неактивной карте невозможно | REQ-CMS-15 |
+| TC-PW-C-22 | DELETE / NON_DIGIT / ACTIVE / ABSENT / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-23 | PATCH / VALID_EXISTING / INACTIVE / DAILY_GT_MONTHLY / LE_BALANCE / NEW | 400: месячный лимит не может быть меньше дневного | REQ-CMS-07 |
+| TC-PW-C-24 | RESERVE / WRONG_LENGTH / ACTIVE / ABSENT / ZERO / WRONG_FORMAT | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-25 | PATCH / VALID_EXISTING / DELETED / DAILY_GT_MONTHLY / LE_BALANCE / NEW | 400: месячный лимит не может быть меньше дневного | REQ-CMS-07 |
+| TC-PW-C-26 | RESERVE / VALID_EXISTING / BLOCKED / ABSENT / NEGATIVE / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-27 | PATCH / VALID_EXISTING / INACTIVE / NEGATIVE / LE_BALANCE / NEW | 400: лимит не может быть отрицательным | REQ-CMS-07 |
+| TC-PW-C-28 | RESERVE / WRONG_LENGTH / ACTIVE / ABSENT / NEGATIVE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-29 | DELETE / VALID_ABSENT / ACTIVE / ABSENT / LE_BALANCE / NEW | 404: карта не найдена | REQ-CMS-05 |
+| TC-PW-C-30 | PATCH / VALID_EXISTING / INACTIVE / VALID / LE_BALANCE / NEW | 200: переданные поля обновлены, остальные не изменились | REQ-CMS-07 |
+| TC-PW-C-31 | RESERVE / NON_DIGIT / ACTIVE / ABSENT / NEGATIVE / DUPLICATE | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-32 | LIST / VALID_ABSENT / BLOCKED / ABSENT / LE_BALANCE / NEW | 200: страница карт и поле `total`; удалённые карты не попадают в выдачу | REQ-CMS-06 |
+| TC-PW-C-33 | PATCH / NON_DIGIT / ACTIVE / VALID / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-34 | RESERVE / VALID_EXISTING / INACTIVE / ABSENT / ZERO / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-35 | PATCH / VALID_EXISTING / BLOCKED / NEGATIVE / LE_BALANCE / NEW | 400: лимит не может быть отрицательным | REQ-CMS-07 |
+| TC-PW-C-36 | RESERVE / WRONG_LENGTH / ACTIVE / ABSENT / GT_BALANCE / DUPLICATE | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-37 | PATCH / VALID_ABSENT / ACTIVE / NEGATIVE / LE_BALANCE / NEW | 400: лимит не может быть отрицательным | REQ-CMS-07 |
+| TC-PW-C-38 | PATCH / VALID_EXISTING / EXPIRED / DAILY_GT_MONTHLY / LE_BALANCE / NEW | 400: месячный лимит не может быть меньше дневного | REQ-CMS-07 |
+| TC-PW-C-39 | RESERVE / VALID_EXISTING / INACTIVE / ABSENT / NEGATIVE / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-40 | CREATE / VALID_ABSENT / ACTIVE / DAILY_GT_MONTHLY / LE_BALANCE / NEW | 400: месячный лимит не может быть меньше дневного | REQ-CMS-02 |
+| TC-PW-C-41 | RESERVE / WRONG_LENGTH / ACTIVE / ABSENT / LE_BALANCE / WRONG_FORMAT | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-42 | RESERVE / VALID_EXISTING / EXPIRED / ABSENT / GT_BALANCE / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-43 | GET_ONE / VALID_EXISTING / DELETED / ABSENT / LE_BALANCE / NEW | 404: удалённая карта недоступна | REQ-CMS-09 |
+| TC-PW-C-44 | PATCH / WRONG_LENGTH / ACTIVE / VALID / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-45 | RESERVE / VALID_EXISTING / DELETED / ABSENT / NEGATIVE / DUPLICATE | 400: сумма резервирования должна быть положительной | REQ-CMS-15 |
+| TC-PW-C-46 | DELETE / VALID_EXISTING / DELETED / ABSENT / LE_BALANCE / NEW | 404: удалённая карта недоступна | REQ-CMS-09 |
+| TC-PW-C-47 | RESERVE / VALID_ABSENT / ACTIVE / ABSENT / NEGATIVE / DUPLICATE | 400: сумма резервирования должна быть положительной | REQ-CMS-15 |
+| TC-PW-C-48 | RESERVE / VALID_EXISTING / EXPIRED / ABSENT / ZERO / NEW | 400: сумма резервирования должна быть положительной | REQ-CMS-15 |
+| TC-PW-C-49 | PATCH / NON_DIGIT / ACTIVE / NEGATIVE / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-50 | LIST / VALID_ABSENT / EXPIRED / ABSENT / LE_BALANCE / NEW | 200: страница карт и поле `total`; удалённые карты не попадают в выдачу | REQ-CMS-06 |
+| TC-PW-C-51 | RESERVE / VALID_ABSENT / ACTIVE / ABSENT / GT_BALANCE / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-52 | PATCH / NON_DIGIT / ACTIVE / DAILY_GT_MONTHLY / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-53 | RESERVE / VALID_EXISTING / DELETED / ABSENT / GT_BALANCE / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-54 | RESERVE / NON_DIGIT / ACTIVE / ABSENT / ZERO / DUPLICATE | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-55 | GET_ONE / VALID_EXISTING / INACTIVE / ABSENT / LE_BALANCE / NEW | 200: карта возвращена | REQ-CMS-05 |
+| TC-PW-C-56 | CREATE / VALID_ABSENT / ACTIVE / ABSENT / LE_BALANCE / NEW | 201: карта создана со статусом ACTIVE, PAN проходит проверку Луна | REQ-CMS-02 |
+| TC-PW-C-57 | PATCH / VALID_EXISTING / EXPIRED / NEGATIVE / LE_BALANCE / NEW | 400: лимит не может быть отрицательным | REQ-CMS-07 |
+| TC-PW-C-58 | GET_ONE / WRONG_LENGTH / ACTIVE / ABSENT / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-59 | GET_ONE / NON_DIGIT / ACTIVE / ABSENT / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-60 | DELETE / VALID_EXISTING / BLOCKED / ABSENT / LE_BALANCE / NEW | 204: карта получает статус DELETED | REQ-CMS-08 |
+| TC-PW-C-61 | RESERVE / VALID_EXISTING / BLOCKED / ABSENT / ZERO / DUPLICATE | 400: сумма резервирования должна быть положительной | REQ-CMS-15 |
+| TC-PW-C-62 | PATCH / WRONG_LENGTH / ACTIVE / DAILY_GT_MONTHLY / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-63 | PATCH / VALID_EXISTING / BLOCKED / VALID / LE_BALANCE / NEW | 200: переданные поля обновлены, остальные не изменились | REQ-CMS-07 |
+| TC-PW-C-64 | PATCH / VALID_EXISTING / DELETED / ABSENT / LE_BALANCE / NEW | 404: удалённая карта недоступна | REQ-CMS-09 |
+| TC-PW-C-65 | RESERVE / NON_DIGIT / ACTIVE / ABSENT / GT_BALANCE / WRONG_FORMAT | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-66 | RESERVE / VALID_EXISTING / BLOCKED / ABSENT / GT_BALANCE / NEW | Отказ: резервирование по неактивной карте невозможно | REQ-CMS-15 |
+| TC-PW-C-67 | CREATE / VALID_ABSENT / ACTIVE / NEGATIVE / LE_BALANCE / NEW | 400: лимит не может быть отрицательным | REQ-CMS-02 |
+| TC-PW-C-68 | PATCH / WRONG_LENGTH / ACTIVE / NEGATIVE / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-69 | RESERVE / VALID_ABSENT / ACTIVE / ABSENT / ZERO / WRONG_FORMAT | 400: RRN должен содержать 12 цифр | REQ-CMS-15 |
+| TC-PW-C-70 | PATCH / VALID_EXISTING / EXPIRED / VALID / LE_BALANCE / NEW | 200: переданные поля обновлены, остальные не изменились | REQ-CMS-07 |
+| TC-PW-C-71 | DELETE / WRONG_LENGTH / ACTIVE / ABSENT / LE_BALANCE / NEW | 400: PAN должен содержать 16 цифр | REQ-CMS-05 |
+| TC-PW-C-72 | DELETE / VALID_EXISTING / EXPIRED / ABSENT / LE_BALANCE / NEW | 204: карта получает статус DELETED | REQ-CMS-08 |
 ## Тест-кейсы: Authorization Service
+
 
 P — приоритет, Ур. — уровень реализации: U (unit), I (интеграционный), A (API).
 
